@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Charmander Unique Art Tracker</title>
+<style>
+  :root{
+    --bg:#141414; --panel:#1e1e1e; --border:#333; --accent:#ff6b35;
+    --text:#eee; --muted:#999; --ordered:#3aa0ff; --owned:#4caf50;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg); color:var(--text); padding:12px;
+  }
+  h1{font-size:1.3rem; margin:0 0 4px;}
+  .sub{color:var(--muted); font-size:0.85rem; margin-bottom:14px;}
+  .toolbar{
+    display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;
+    position:sticky; top:0; background:var(--bg); padding:8px 0; z-index:10;
+  }
+  .controls-bar{
+    display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px;
+    position:sticky; top:52px; background:var(--bg); padding:0 0 10px 0; z-index:9;
+    border-bottom:1px solid var(--border); align-items:center;
+  }
+  .controls-bar input[type="search"]{flex:1 1 160px; min-width:140px;}
+  .controls-bar select{flex:0 1 150px; min-width:130px;}
+  .controls-bar button{flex:0 0 auto; white-space:nowrap;}
+  .filter-chips{display:flex; gap:6px; flex-wrap:wrap; align-items:center;}
+  .filter-chips .chips-label{font-size:0.72rem; color:var(--muted); margin-right:2px;}
+  .chip-btn{
+    background:var(--panel); border:1px solid var(--border); color:var(--muted);
+    border-radius:16px; padding:6px 11px; font-size:0.8rem; cursor:pointer;
+    display:flex; align-items:center; gap:5px;
+  }
+  .chip-btn.chip-on{color:var(--text); border-color:var(--text);}
+  .chip-btn[data-status="none"].chip-on{border-color:var(--text); background:rgba(255,255,255,0.08);}
+  .chip-btn[data-status="ordered"].chip-on{border-color:var(--ordered); color:var(--ordered); background:rgba(58,160,255,0.12);}
+  .chip-btn[data-status="owned"].chip-on{border-color:var(--owned); color:var(--owned); background:rgba(76,175,80,0.12);}
+  .chip-btn .chip-check{font-size:0.7rem;}
+  .results-info{font-size:0.75rem; color:var(--muted); margin-bottom:10px;}
+  button{
+    background:var(--panel); color:var(--text); border:1px solid var(--border);
+    border-radius:8px; padding:8px 12px; font-size:0.85rem; cursor:pointer;
+  }
+  button.primary{background:var(--accent); border-color:var(--accent); color:#111; font-weight:600;}
+  button.toggle-on{background:var(--accent); border-color:var(--accent); color:#111; font-weight:600;}
+  button:active{opacity:0.7;}
+  input, select{
+    background:#111; color:var(--text); border:1px solid var(--border);
+    border-radius:6px; padding:8px; font-size:0.9rem; width:100%;
+  }
+  .section-header{
+    display:flex; justify-content:space-between; align-items:baseline;
+    margin:20px 0 8px; border-bottom:2px solid var(--accent); padding-bottom:4px;
+  }
+  .section-header h2{font-size:1.05rem; margin:0;}
+  .section-header .count{font-size:0.8rem; color:var(--muted);}
+  .card{
+    display:flex; gap:10px; background:var(--panel); border:1px solid var(--border);
+    border-left:3px solid transparent;
+    border-radius:10px; padding:10px; margin-bottom:8px; align-items:center;
+  }
+  .card.status-owned{opacity:0.55; border-left-color:var(--owned);}
+  .card.status-ordered{opacity:0.9; border-left-color:var(--ordered);}
+  .thumb{
+    width:56px; height:78px; flex:0 0 56px; border-radius:6px; background:#2a2a2a;
+    display:flex; align-items:center; justify-content:center; overflow:hidden;
+    border:1px solid var(--border); font-size:0.6rem; color:var(--muted); text-align:center;
+  }
+  .thumb img{width:100%; height:100%; object-fit:cover;}
+  .thumb.clickable{cursor:pointer; position:relative;}
+  .thumb.clickable:hover{opacity:0.8; box-shadow:0 0 0 2px var(--accent);}
+  .thumb.clickable:hover::after{
+    content:"🔍"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:rgba(0,0,0,0.35); font-size:1.1rem;
+  }
+
+  /* ============= Large view: grid of image-forward tiles (~2x the old thumb size), ============= */
+  /* ============= wrapping into as many columns as fit, instead of one tall skinny list. ========= */
+  body.large-view #enList,
+  body.large-view #jpList{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap:14px;
+  }
+  body.large-view .card{
+    flex-direction:column;
+    align-items:stretch;
+    margin-bottom:0;
+    padding:12px;
+  }
+  body.large-view .thumb{
+    width:100%;
+    max-width:260px;
+    height:auto;
+    aspect-ratio: 5 / 7;
+    flex:none;
+    margin:0 auto 10px;
+    font-size:0.8rem;
+  }
+  body.large-view .info{
+    text-align:center;
+  }
+  body.large-view .card-actions{
+    flex-direction:row;
+    justify-content:center;
+    align-items:center;
+    gap:10px;
+    margin-top:10px;
+    width:100%;
+  }
+  body.large-view .status-group{
+    justify-content:center;
+  }
+
+  .info{flex:1; min-width:0;}
+  .info .name{font-weight:600; font-size:0.92rem;}
+  .info .meta{font-size:0.78rem; color:var(--muted); margin-top:2px;}
+  .info .artist{font-size:0.74rem; color:#888; margin-top:1px;}
+  .info .note{font-size:0.72rem; color:#c98a3a; margin-top:2px; font-style:italic;}
+  .info .status-badge{
+    display:inline-block; font-size:0.68rem; margin-top:3px; padding:1px 6px;
+    border-radius:10px; font-weight:600;
+  }
+  .info .status-badge.ordered{background:rgba(58,160,255,0.18); color:var(--ordered);}
+  .info .status-badge.owned{background:rgba(76,175,80,0.18); color:var(--owned);}
+  .card-actions{display:flex; flex-direction:column; gap:6px; align-items:flex-end;}
+  .status-group{display:flex; gap:3px;}
+  .status-btn{
+    background:var(--panel); border:1px solid var(--border); color:var(--muted);
+    border-radius:6px; padding:4px 6px; font-size:0.85rem; line-height:1; cursor:pointer;
+  }
+  .status-btn.active-none{border-color:var(--muted); color:var(--text);}
+  .status-btn.active-ordered{background:var(--ordered); border-color:var(--ordered); color:#08131f;}
+  .status-btn.active-owned{background:var(--owned); border-color:var(--owned); color:#07190a;}
+  .icon-btn{background:none; border:none; color:var(--muted); font-size:0.72rem; padding:2px 4px;}
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6);
+    align-items:flex-end; justify-content:center; z-index:100;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal{
+    background:var(--panel); border-radius:14px 14px 0 0; padding:16px; width:100%;
+    max-width:480px; max-height:85vh; overflow-y:auto;
+  }
+  .modal h3{margin-top:0;}
+  .field{margin-bottom:10px;}
+  .field label{font-size:0.78rem; color:var(--muted); display:block; margin-bottom:4px;}
+  .modal-buttons{display:flex; gap:8px; margin-top:12px;}
+  .modal-buttons button{flex:1;}
+  #fileInput{display:none;}
+  .note-box{
+    font-size:0.78rem; color:var(--muted); background:#1a1a1a; border:1px solid var(--border);
+    border-radius:8px; padding:10px; margin-bottom:14px; line-height:1.45;
+  }
+  .note-box b{color:#ddd;}
+  .no-results{
+    color:var(--muted); font-size:0.85rem; padding:16px; text-align:center;
+    border:1px dashed var(--border); border-radius:10px; margin-bottom:8px;
+    grid-column: 1 / -1;
+  }
+  .lightbox-overlay{
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,0.88);
+    align-items:center; justify-content:center; z-index:300; padding:24px;
+  }
+  .lightbox-overlay.open{display:flex;}
+  .lightbox-content{
+    position:relative; max-width:95vw; max-height:92vh;
+    display:flex; flex-direction:column; align-items:center;
+  }
+  .lightbox-content img{
+    max-width:95vw; max-height:82vh; object-fit:contain;
+    border-radius:8px; background:#111; border:1px solid var(--border);
+  }
+  .lightbox-close{
+    position:absolute; top:-44px; right:0; background:none; border:none;
+    color:#fff; font-size:2rem; line-height:1; cursor:pointer; padding:4px 8px;
+  }
+  .lightbox-caption{color:#ccc; font-size:0.82rem; margin-top:10px; text-align:center;}
+  .lightbox-hint{color:#777; font-size:0.7rem; margin-top:4px; text-align:center;}
+</style>
+</head>
+<body>
+<h1>🔥 Charmander Unique Art Tracker</h1>
+<div class="sub" id="overallProgress"></div>
+<div class="note-box">
+Sourced from Bulbapedia's card-by-card artist/release data, with images linked from the public Pokémon TCG image API where the set ID could be confirmed. Entries with an "add manually" note couldn't be reliably sourced — use "+ Add card" → edit → paste an image URL yourself for those. Tap any thumbnail to view it full size. Use the ○ / 📦 / ✅ buttons on each card to mark it Missing, Ordered, or Owned — and use the "Show" chips below to filter by any combination of those. Export/import to save progress.
+</div>
+<div class="toolbar">
+  <button class="primary" onclick="openAddModal()">+ Add card</button>
+  <button onclick="exportJSON()">⬇ Export JSON</button>
+  <button onclick="document.getElementById('fileInput').click()">⬆ Import JSON</button>
+  <input type="file" id="fileInput" accept="application/json" onchange="importJSON(event)">
+  <button id="viewToggleBtn" onclick="toggleView()">🖼️ Large view: Off</button>
+</div>
+<div class="controls-bar">
+  <input type="search" id="searchInput" placeholder="Search name, set, number, artist..." oninput="onSearchInput()">
+  <select id="sortSelect" onchange="onSortChange()">
+    <option value="default">Sort: Default order</option>
+    <option value="set">Sort: Set (A–Z)</option>
+    <option value="number">Sort: Number (low–high)</option>
+    <option value="name">Sort: Name (A–Z)</option>
+  </select>
+  <button onclick="clearControls()">✕ Clear</button>
+</div>
+<div class="controls-bar filter-chips" id="statusChips">
+  <span class="chips-label">Show:</span>
+  <!-- chip buttons injected by JS -->
+</div>
+<div class="results-info" id="resultsInfo"></div>
+<div class="section-header">
+  <h2>🇬🇧 English</h2>
+  <span class="count" id="enCount"></span>
+</div>
+<div id="enList"></div>
+<div class="section-header">
+  <h2>🇯🇵 Japanese (exclusive art)</h2>
+  <span class="count" id="jpCount"></span>
+</div>
+<div id="jpList"></div>
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3 id="modalTitle">Add card</h3>
+    <div class="field">
+      <label>Language</label>
+      <select id="f_lang">
+        <option value="EN">English</option>
+        <option value="JP">Japanese</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Name / title</label>
+      <input id="f_name" placeholder="Charmander">
+    </div>
+    <div class="field">
+      <label>Set</label>
+      <input id="f_set" placeholder="e.g. Base Set">
+    </div>
+    <div class="field">
+      <label>Number / identifier</label>
+      <input id="f_number" placeholder="e.g. 46/102">
+    </div>
+    <div class="field">
+      <label>Artist (optional)</label>
+      <input id="f_artist" placeholder="e.g. Mitsuhiro Arita">
+    </div>
+    <div class="field">
+      <label>Note (optional)</label>
+      <input id="f_note" placeholder="e.g. verify, reprint of X">
+    </div>
+    <div class="field">
+      <label>Image URL (optional)</label>
+      <input id="f_image" placeholder="https://...">
+    </div>
+    <div class="modal-buttons">
+      <button onclick="closeModal()">Cancel</button>
+      <button class="primary" onclick="saveModal()">Save</button>
+    </div>
+  </div>
+</div>
+<div class="lightbox-overlay" id="lightboxOverlay" onclick="if(event.target===this) closeLightbox()">
+  <div class="lightbox-content">
+    <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+    <img id="lightboxImg" src="" alt="Full size card art">
+    <div class="lightbox-caption" id="lightboxCaption"></div>
+    <div class="lightbox-hint">Tap outside the image, press Esc, or use × to close</div>
+  </div>
+</div>
+<script>
+const STORAGE_KEY = "charmander-tracker-v2";
+const PREFS_KEY = "charmander-tracker-prefs-v1";
+let editingId = null;
+let searchQuery = "";
+let sortMode = "default";
+let largeView = false;
+
+const STATUS_OPTIONS = [
+  {key:'none',    icon:'○',  label:'Missing'},
+  {key:'ordered', icon:'📦', label:'Ordered'},
+  {key:'owned',   icon:'✅', label:'Owned'}
+];
+let statusFilters = new Set(['none','ordered','owned']);
+
+let cards = [
+  // ================= ENGLISH =================
+  {id:"en-baseset", lang:"EN", name:"Charmander", set:"Base Set", number:"46/102", artist:"Mitsuhiro Arita", note:"", imageUrl:"https://images.pokemontcg.io/base1/46.png", status:"none"},
+  {id:"en-teamrocket", lang:"EN", name:"Charmander", set:"Team Rocket", number:"50/82", artist:"Kagemaru Himeno", note:"", imageUrl:"https://images.pokemontcg.io/base5/50.png", status:"none"},
+  {id:"en-gymheroes-blaines", lang:"EN", name:"Blaine's Charmander", set:"Gym Heroes", number:"61", artist:"", note:"", imageUrl:"https://images.pokemontcg.io/gym1/61.png", status:"none"},
+  {id:"en-gymchallenge-blaines", lang:"EN", name:"Blaine's Charmander", set:"Gym Challenge", number:"60", artist:"", note:"", imageUrl:"https://images.pokemontcg.io/gym2/60.png", status:"none"},
+  {id:"en-expedition-97", lang:"EN", name:"Charmander", set:"Expedition", number:"97", artist:"", note:"", imageUrl:"https://images.pokemontcg.io/ecard1/97.png", status:"none"},
+  {id:"en-expedition-98", lang:"EN", name:"Charmander", set:"Expedition", number:"98", artist:"", note:"", imageUrl:"https://images.pokemontcg.io/ecard1/98.png", status:"none"},
+  {id:"en-exdragon-98", lang:"EN", name:"Charmander (Secret Rare)", set:"EX Dragon", number:"98", artist:"Mitsuhiro Arita", note:"", imageUrl:"https://images.pokemontcg.io/ex3/98.png", status:"none"},
+  {id:"en-exfrlg-57", lang:"EN", name:"Charmander", set:"EX FireRed & LeafGreen", number:"57", artist:"Kouki Saitou", note:"", imageUrl:"https://images.pokemontcg.io/ex6/57.png", status:"none"},
+  {id:"en-exfrlg-58", lang:"EN", name:"Charmander", set:"EX FireRed & LeafGreen", number:"58", artist:"", note:"", imageUrl:"https://images.pokemontcg.io/ex6/58.png", status:"none"},
+  {id:"en-exfrlg-113", lang:"EN", name:"Charmander (Secret Box Topper)", set:"EX FireRed & LeafGreen", number:"113/112", artist:"Ken Sugimori", note:"", imageUrl:"https://images.pokemontcg.io/ex6/113.png", status:"none"},
+  {id:"en-crystalguardians-48", lang:"EN", name:"Charmander", set:"EX Crystal Guardians", number:"48", artist:"", note:"", imageUrl:"https://images.pokemontcg.io/ex14/48.png", status:"none"},
+  {id:"en-crystalguardians-49", lang:"EN", name:"Charmander δ (Delta Species)", set:"EX Crystal Guardians", number:"49/100", artist:"Mitsuhiro Arita", note:"Also reprinted in POP Series 5, same art", imageUrl:"https://images.pokemontcg.io/ex14/49.png", status:"none"},
+  {id:"en-powerkeepers-48", lang:"EN", name:"Charmander", set:"EX Power Keepers", number:"48", artist:"", note:"", imageUrl:"https://images.pokemontcg.io/ex16/48.png", status:"none"},
+  {id:"en-secretwonders-82", lang:"EN", name:"Charmander", set:"Secret Wonders", number:"82", artist:"", note:"", imageUrl:"https://images.pokemontcg.io/dp3/82.png", status:"none"},
+  {id:"en-arceus-59", lang:"EN", name:"Charmander", set:"Arceus", number:"59", artist:"", note:"", imageUrl:"https://images.pokemontcg.io/pl4/59.png", status:"none"},
+  {id:"en-boundariescrossed-18", lang:"EN", name:"Charmander", set:"Boundaries Crossed", number:"18", artist:"Akira Komayama", note:"", imageUrl:"https://images.pokemontcg.io/bw7/18.png", status:"none"},
+  {id:"en-generations-rc3", lang:"EN", name:"Charmander", set:"Generations", number:"RC3", artist:"", note:"", imageUrl:"https://images.pokemontcg.io/g1/RC3.png", status:"none"},
+  {id:"en-burningshadows-18", lang:"EN", name:"Charmander", set:"Burning Shadows", number:"18", artist:"Kagemaru Himeno", note:"", imageUrl:"https://images.pokemontcg.io/sm3/18.png", status:"none"},
+  {id:"en-charmander-sidekick", lang:"EN", name:"Charmander (Cosmos Holo)", set:"Charmander Sidekick Collection", number:"", artist:"Masakazu Fukuda", note:"English release of a JP SM-P promo reprint — image not confidently sourced, add manually", imageUrl:"", status:"none"},
+  {id:"en-dragonmajesty-1", lang:"EN", name:"Charmander", set:"Dragon Majesty", number:"1", artist:"", note:"", imageUrl:"https://images.pokemontcg.io/sm75/1.png", status:"none"},
+  {id:"en-teamup-11", lang:"EN", name:"Charmander", set:"Team Up", number:"11", artist:"", note:"", imageUrl:"https://images.pokemontcg.io/sm9/11.png", status:"none"},
+  {id:"en-teamup-12", lang:"EN", name:"Charmander", set:"Team Up", number:"12", artist:"", note:"", imageUrl:"https://images.pokemontcg.io/sm9/12.png", status:"none"},
+  {id:"en-hiddenfates-7", lang:"EN", name:"Charmander", set:"Hidden Fates", number:"7", artist:"", note:"", imageUrl:"https://images.pokemontcg.io/sm115/7.png", status:"none"},
+  {id:"en-hiddenfates-shinyvault", lang:"EN", name:"Charmander (Shiny)", set:"Hidden Fates Shiny Vault", number:"SV6/94", artist:"kirisAki", note:"Number corrected to SV6/94", imageUrl:"https://images.pokemontcg.io/sma/SV6.png", status:"none"},
+  {id:"en-detectivepikachu-4", lang:"EN", name:"Charmander", set:"Detective Pikachu", number:"4", artist:"", note:"", imageUrl:"https://images.pokemontcg.io/det1/4.png", status:"none"},
+  {id:"en-vividvoltage-23", lang:"EN", name:"Charmander", set:"Vivid Voltage", number:"23", artist:"MAHOU", note:"", imageUrl:"https://images.pokemontcg.io/swsh4/23.png", status:"none"},
+  {id:"en-swsh092", lang:"EN", name:"Charmander (Holofoil Promo)", set:"SWSH Black Star Promo", number:"SWSH092", artist:"Uta", note:"Reprint of Vivid Voltage w/ different art", imageUrl:"https://images.pokemontcg.io/swshp/SWSH092.png", status:"none"},
+  {id:"en-pokemongo-promo", lang:"EN", name:"Charmander (Pokémon GO Pin Collection)", set:"SWSH Black Star Promo (Pokémon GO)", number:"SWSH232", artist:"Saya Tsuruta", note:"Number corrected to SWSH232", imageUrl:"https://images.pokemontcg.io/swshp/SWSH232.png", status:"none"},
+  {id:"en-obsidianflames-svp044", lang:"EN", name:"Charmander (Full Art Promo)", set:"Obsidian Flames / SVP Promo", number:"SVP044", artist:"MINAMINAMI Take", note:"", imageUrl:"https://images.pokemontcg.io/svp/SVP044.png", status:"none"},
+  {id:"en-151-4", lang:"EN", name:"Charmander", set:"Scarlet & Violet: 151", number:"4/165", artist:"GIDORA", note:"", imageUrl:"https://images.pokemontcg.io/sv3pt5/4.png", status:"none"},
+  {id:"en-151-ir", lang:"EN", name:"Charmander (Illustration Rare)", set:"Scarlet & Violet: 151 / Paldean Fates", number:"168/165", artist:"miki kudo", note:"", imageUrl:"https://images.pokemontcg.io/sv3pt5/168.png", status:"none"},
+  {id:"en-shinytreasure", lang:"EN", name:"Charmander (Shiny)", set:"Shiny Treasure ex / Paldean Fates", number:"", artist:"sowsow", note:"Exact English print number unconfirmed — image not sourced, add manually", imageUrl:"", status:"none"},
+  {id:"en-myfirstbattle", lang:"EN", name:"Charmander", set:"My First Battle", number:"", artist:"", note:"Card number unconfirmed — image not sourced, add manually", imageUrl:"", status:"none"},
+  {id:"en-ascendedheroes-20", lang:"EN", name:"Charmander", set:"Ascended Heroes", number:"20", artist:"", note:"Set released Jan 2026, too recent to confirm a reliable image source — add manually", imageUrl:"", status:"none"},
+  {id:"en-phantasmalflames-11", lang:"EN", name:"Charmander", set:"Phantasmal Flames", number:"11/94", artist:"HYOGONOSUKE", note:"Set released Nov 2025, too recent to confirm a reliable image source — add manually", imageUrl:"", status:"none"},
+  {id:"en-30thanniversary", lang:"EN", name:"Charmander (First Partner)", set:"30th Anniversary (MEP Promo)", number:"MEP038", artist:"Saboteri", note:"Number corrected to MEP038 (First Partner Illustration Collection, Series 1) — image not sourced, add manually", imageUrl:"", status:"none"},
+  // ================= JAPANESE EXCLUSIVE =================
+  {id:"jp-baseset-snap", lang:"JP", name:"Charmander (Snap Contest reprint)", set:"Expansion Pack (Japan)", number:"", artist:"Tsukasa Hosono", note:"Not in English card image database — add manually via Bulbapedia", imageUrl:"", status:"none"},
+  {id:"jp-dpp-124", lang:"JP", name:"Charmander", set:"DP-P Promo (10th Anniversary)", number:"124", artist:"", note:"Never released in English — add manually via Bulbapedia", imageUrl:"", status:"none"},
+  {id:"jp-vending-s1", lang:"JP", name:"Charmander", set:"Vending Series 1", number:"", artist:"", note:"Never released in English — add manually via Bulbapedia", imageUrl:"", status:"none"},
+  {id:"jp-mcdonalds-4", lang:"JP", name:"Charmander", set:"McDonald's Pack (e-Series)", number:"4", artist:"", note:"Never released in English — add manually via Bulbapedia", imageUrl:"", status:"none"},
+  {id:"jp-go-original", lang:"JP", name:"Charmander (original GO art)", set:"Pokémon GO (Japan)", number:"", artist:"saino misaki", note:"Not in English card image database — add manually via Bulbapedia", imageUrl:"", status:"none"},
+  {id:"jp-pokekyun", lang:"JP", name:"Charmander", set:"Pokékyun Collection (CP3)", number:"3", artist:"Akira Komayama", note:"Not in English card image database — add manually via Bulbapedia", imageUrl:"", status:"none"},
+  {id:"jp-bwp-promo", lang:"JP", name:"Charmander (Gym Challenge logo)", set:"BW-P Promo", number:"", artist:"Akira Komayama", note:"Reprint of Boundaries Crossed art, different pose — add manually via Bulbapedia", imageUrl:"", status:"none"},
+];
+
+function loadState(){
+  try{
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if(saved){
+      const parsed = JSON.parse(saved);
+      if(parsed && Array.isArray(parsed.cards) && parsed.cards.length){
+        cards = parsed.cards;
+      }
+    }
+  }catch(e){}
+  cards.forEach(c => {
+    if(c.status === undefined){
+      c.status = c.checked ? 'owned' : 'none';
+    }
+  });
+}
+function saveState(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({cards})); }catch(e){}
+}
+function loadPrefs(){
+  try{
+    const saved = localStorage.getItem(PREFS_KEY);
+    if(saved){
+      const p = JSON.parse(saved);
+      largeView = !!p.largeView;
+      sortMode = p.sortMode || "default";
+      if(Array.isArray(p.statusFilters) && p.statusFilters.length){
+        statusFilters = new Set(p.statusFilters);
+      } else if(typeof p.statusFilter === 'string'){
+        statusFilters = p.statusFilter === 'all'
+          ? new Set(['none','ordered','owned'])
+          : new Set([p.statusFilter]);
+      }
+    }
+  }catch(e){}
+}
+function savePrefs(){
+  try{ localStorage.setItem(PREFS_KEY, JSON.stringify({largeView, sortMode, statusFilters: Array.from(statusFilters)})); }catch(e){}
+}
+
+function matchesSearch(c, q){
+  if(!q) return true;
+  const hay = [c.name, c.set, c.number, c.artist, c.note].join(' ').toLowerCase();
+  return hay.includes(q);
+}
+function matchesStatusFilter(c){
+  return statusFilters.has(c.status);
+}
+function parseNumberForSort(str){
+  if(!str) return Infinity;
+  const m = String(str).match(/\d+/);
+  return m ? parseInt(m[0], 10) : Infinity;
+}
+function sortCards(list){
+  const arr = list.slice();
+  if(sortMode === 'set'){
+    arr.sort((a,b) => a.set.localeCompare(b.set) || parseNumberForSort(a.number) - parseNumberForSort(b.number));
+  } else if(sortMode === 'number'){
+    arr.sort((a,b) => parseNumberForSort(a.number) - parseNumberForSort(b.number) || a.set.localeCompare(b.set));
+  } else if(sortMode === 'name'){
+    arr.sort((a,b) => a.name.localeCompare(b.name));
+  }
+  return arr;
+}
+
+function onSearchInput(){
+  searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
+  render();
+}
+function onSortChange(){
+  sortMode = document.getElementById('sortSelect').value;
+  savePrefs();
+  render();
+}
+function toggleStatusChip(key){
+  if(statusFilters.has(key)){
+    if(statusFilters.size === 1) return;
+    statusFilters.delete(key);
+  } else {
+    statusFilters.add(key);
+  }
+  savePrefs();
+  renderStatusChips();
+  render();
+}
+function renderStatusChips(){
+  const container = document.getElementById('statusChips');
+  container.querySelectorAll('.chip-btn').forEach(el => el.remove());
+  STATUS_OPTIONS.forEach(opt => {
+    const btn = document.createElement('button');
+    const on = statusFilters.has(opt.key);
+    btn.className = 'chip-btn' + (on ? ' chip-on' : '');
+    btn.dataset.status = opt.key;
+    btn.innerHTML = `<span class="chip-check">${on ? '✓' : ''}</span>${opt.icon} ${opt.label}`;
+    btn.onclick = () => toggleStatusChip(opt.key);
+    container.appendChild(btn);
+  });
+}
+function clearControls(){
+  searchQuery = "";
+  document.getElementById('searchInput').value = "";
+  sortMode = "default";
+  document.getElementById('sortSelect').value = "default";
+  statusFilters = new Set(['none','ordered','owned']);
+  savePrefs();
+  renderStatusChips();
+  render();
+}
+function toggleView(){
+  largeView = !largeView;
+  document.body.classList.toggle('large-view', largeView);
+  document.getElementById('viewToggleBtn').textContent = largeView ? '🖼️ Large view: On' : '🖼️ Large view: Off';
+  document.getElementById('viewToggleBtn').classList.toggle('toggle-on', largeView);
+  savePrefs();
+}
+function setStatus(id, status){
+  const c = cards.find(x => x.id === id);
+  if(!c) return;
+  c.status = status;
+  saveState();
+  render();
+}
+
+function render(){
+  const enList = document.getElementById('enList');
+  const jpList = document.getElementById('jpList');
+  enList.innerHTML = '';
+  jpList.innerHTML = '';
+
+  const enCardsAll = cards.filter(c => c.lang === 'EN');
+  const jpCardsAll = cards.filter(c => c.lang === 'JP');
+
+  const passFilters = c => matchesSearch(c, searchQuery) && matchesStatusFilter(c);
+  const enFiltered = sortCards(enCardsAll.filter(passFilters));
+  const jpFiltered = sortCards(jpCardsAll.filter(passFilters));
+
+  if(enFiltered.length === 0){
+    enList.innerHTML = '<div class="no-results">No English cards match your filters.</div>';
+  } else {
+    enFiltered.forEach(c => enList.appendChild(renderCard(c)));
+  }
+  if(jpFiltered.length === 0){
+    jpList.innerHTML = '<div class="no-results">No Japanese cards match your filters.</div>';
+  } else {
+    jpFiltered.forEach(c => jpList.appendChild(renderCard(c)));
+  }
+
+  const enOwned = enCardsAll.filter(c=>c.status==='owned').length;
+  const enOrdered = enCardsAll.filter(c=>c.status==='ordered').length;
+  const jpOwned = jpCardsAll.filter(c=>c.status==='owned').length;
+  const jpOrdered = jpCardsAll.filter(c=>c.status==='ordered').length;
+
+  document.getElementById('enCount').textContent =
+    `${enOwned} owned${enOrdered ? ' · ' + enOrdered + ' ordered' : ''} / ${enCardsAll.length}`;
+  document.getElementById('jpCount').textContent =
+    `${jpOwned} owned${jpOrdered ? ' · ' + jpOrdered + ' ordered' : ''} / ${jpCardsAll.length}`;
+
+  const totalOwned = enOwned + jpOwned;
+  const totalOrdered = enOrdered + jpOrdered;
+  const totalAll = enCardsAll.length + jpCardsAll.length;
+  document.getElementById('overallProgress').textContent =
+    `Total: ${totalOwned} owned` +
+    (totalOrdered ? ` · ${totalOrdered} ordered` : '') +
+    ` / ${totalAll} unique arts`;
+
+  const totalShown = enFiltered.length + jpFiltered.length;
+  const resultsInfo = document.getElementById('resultsInfo');
+  const parts = [];
+  if(searchQuery) parts.push(`matching "${searchQuery}"`);
+  if(statusFilters.size < 3){
+    const labels = STATUS_OPTIONS.filter(o => statusFilters.has(o.key)).map(o => o.label.toLowerCase());
+    parts.push(`status: ${labels.join(' + ')}`);
+  }
+  resultsInfo.textContent = parts.length
+    ? `Showing ${totalShown} of ${totalAll} cards (${parts.join(', ')})`
+    : `Showing all ${totalAll} cards`;
+}
+
+function renderCard(c){
+  const div = document.createElement('div');
+  div.className = 'card' + (c.status && c.status !== 'none' ? ' status-' + c.status : '');
+  const thumb = document.createElement('div');
+  thumb.className = 'thumb';
+  if(c.imageUrl){
+    thumb.classList.add('clickable');
+    thumb.onclick = () => openLightbox(c);
+    const img = document.createElement('img');
+    img.src = c.imageUrl;
+    img.onerror = () => {
+      thumb.innerHTML = 'no image';
+      thumb.classList.remove('clickable');
+      thumb.onclick = null;
+    };
+    thumb.appendChild(img);
+  } else {
+    thumb.textContent = 'no image';
+  }
+  const info = document.createElement('div');
+  info.className = 'info';
+  info.innerHTML = `
+    <div class="name">${escapeHtml(c.name)}</div>
+    <div class="meta">${escapeHtml(c.set)}${c.number ? ' · #' + escapeHtml(c.number) : ''}</div>
+    ${c.artist ? `<div class="artist">Illus. ${escapeHtml(c.artist)}</div>` : ''}
+    ${c.note ? `<div class="note">${escapeHtml(c.note)}</div>` : ''}
+    ${c.status === 'ordered' ? '<div class="status-badge ordered">📦 Ordered</div>' : ''}
+    ${c.status === 'owned' ? '<div class="status-badge owned">✅ Owned</div>' : ''}
+  `;
+  const actions = document.createElement('div');
+  actions.className = 'card-actions';
+
+  const statusGroup = document.createElement('div');
+  statusGroup.className = 'status-group';
+  STATUS_OPTIONS.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.className = 'status-btn' + (c.status === opt.key ? ' active-' + opt.key : '');
+    btn.textContent = opt.icon;
+    btn.title = opt.label;
+    btn.setAttribute('aria-label', opt.label);
+    btn.onclick = () => setStatus(c.id, opt.key);
+    statusGroup.appendChild(btn);
+  });
+
+  const editBtn = document.createElement('button');
+  editBtn.className = 'icon-btn';
+  editBtn.textContent = 'Edit';
+  editBtn.onclick = () => openEditModal(c.id);
+  const delBtn = document.createElement('button');
+  delBtn.className = 'icon-btn';
+  delBtn.textContent = 'Delete';
+  delBtn.onclick = () => { if(confirm('Delete this card?')){ cards = cards.filter(x=>x.id!==c.id); saveState(); render(); } };
+
+  actions.appendChild(statusGroup);
+  actions.appendChild(editBtn);
+  actions.appendChild(delBtn);
+  div.appendChild(thumb);
+  div.appendChild(info);
+  div.appendChild(actions);
+  return div;
+}
+function escapeHtml(s){
+  return (s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function getHiResUrl(url){
+  if(!url) return null;
+  const m = url.match(/^https:\/\/images\.pokemontcg\.io\/([^\/]+)\/([^\/.]+)\.png$/);
+  if(m){
+    return `https://images.pokemontcg.io/${m[1]}/${m[2]}_hires.png`;
+  }
+  return null;
+}
+function openLightbox(c){
+  const overlay = document.getElementById('lightboxOverlay');
+  const img = document.getElementById('lightboxImg');
+  const caption = document.getElementById('lightboxCaption');
+  caption.textContent = `${c.name} — ${c.set}${c.number ? ' #' + c.number : ''}`;
+  img.src = c.imageUrl;
+  const hiResUrl = getHiResUrl(c.imageUrl);
+  if(hiResUrl){
+    const preload = new Image();
+    preload.onload = () => { img.src = hiResUrl; };
+    preload.onerror = () => {};
+    preload.src = hiResUrl;
+  }
+  overlay.classList.add('open');
+}
+function closeLightbox(){
+  document.getElementById('lightboxOverlay').classList.remove('open');
+  document.getElementById('lightboxImg').src = '';
+}
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Escape') closeLightbox();
+});
+function openAddModal(){
+  editingId = null;
+  document.getElementById('modalTitle').textContent = 'Add card';
+  ['f_name','f_set','f_number','f_artist','f_note','f_image'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f_lang').value = 'EN';
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function openEditModal(id){
+  const c = cards.find(x=>x.id===id);
+  if(!c) return;
+  editingId = id;
+  document.getElementById('modalTitle').textContent = 'Edit card';
+  document.getElementById('f_lang').value = c.lang;
+  document.getElementById('f_name').value = c.name;
+  document.getElementById('f_set').value = c.set;
+  document.getElementById('f_number').value = c.number;
+  document.getElementById('f_artist').value = c.artist || '';
+  document.getElementById('f_note').value = c.note || '';
+  document.getElementById('f_image').value = c.imageUrl || '';
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal(){ document.getElementById('modalOverlay').classList.remove('open'); }
+function saveModal(){
+  const lang = document.getElementById('f_lang').value;
+  const name = document.getElementById('f_name').value.trim();
+  const set = document.getElementById('f_set').value.trim();
+  const number = document.getElementById('f_number').value.trim();
+  const artist = document.getElementById('f_artist').value.trim();
+  const note = document.getElementById('f_note').value.trim();
+  const imageUrl = document.getElementById('f_image').value.trim();
+  if(!name || !set){ alert('Name and Set are required.'); return; }
+  if(editingId){
+    const c = cards.find(x=>x.id===editingId);
+    Object.assign(c, {lang, name, set, number, artist, note, imageUrl});
+  } else {
+    cards.push({
+      id: 'custom-' + Date.now() + '-' + Math.random().toString(36).slice(2,7),
+      lang, name, set, number, artist, note, imageUrl, status:'none'
+    });
+  }
+  saveState();
+  closeModal();
+  render();
+}
+function exportJSON(){
+  const data = JSON.stringify({version:3, exportedAt: new Date().toISOString(), cards}, null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'charmander-tracker-' + new Date().toISOString().slice(0,10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function importJSON(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try{
+      const parsed = JSON.parse(e.target.result);
+      if(parsed && Array.isArray(parsed.cards)){
+        cards = parsed.cards;
+        cards.forEach(c => {
+          if(c.status === undefined){
+            c.status = c.checked ? 'owned' : 'none';
+          }
+        });
+        saveState();
+        render();
+        alert('Imported ' + cards.length + ' cards.');
+      } else {
+        alert('This file doesn\'t look like a valid export.');
+      }
+    }catch(err){
+      alert('Could not parse that file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+loadState();
+loadPrefs();
+document.body.classList.toggle('large-view', largeView);
+document.getElementById('viewToggleBtn').textContent = largeView ? '🖼️ Large view: On' : '🖼️ Large view: Off';
+document.getElementById('viewToggleBtn').classList.toggle('toggle-on', largeView);
+document.getElementById('sortSelect').value = sortMode;
+renderStatusChips();
+render();
+</script>
+</body>
+</html>
